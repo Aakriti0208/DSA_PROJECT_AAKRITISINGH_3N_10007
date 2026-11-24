@@ -1,0 +1,388 @@
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.Queue;
+import java.util.Scanner;
+
+public class EventRegistrationApp {
+
+    static class Participant {
+        private final int id;
+        private final String name;
+        private final String email;
+
+        Participant(int id, String name, String email) {
+            this.id = id;
+            this.name = name;
+            this.email = email;
+        }
+
+        int getId() { return id; }
+        String getName() { return name; }
+        String getEmail() { return email; }
+
+        @Override
+        public String toString() {
+            return "[ID: " + id + ", Name: " + name + ", Email: " + email + "]";
+        }
+    }
+
+    static class Event {
+        private final int id;
+        private final String name;
+        private final String date;
+        private final int capacity;
+
+        private final ArrayList<Participant> registered = new ArrayList<>();
+        private final Queue<Participant> waitlist = new LinkedList<>();
+
+        Event(int id, String name, String date, int capacity) {
+            this.id = id;
+            this.name = name;
+            this.date = date;
+            this.capacity = capacity;
+        }
+
+        int getId() { return id; }
+        String getName() { return name; }
+        ArrayList<Participant> getRegistered() { return registered; }
+        Queue<Participant> getWaitlist() { return waitlist; }
+
+        boolean isFull() {
+            return registered.size() >= capacity;
+        }
+
+        boolean isAlreadyInvolved(int participantId) {
+            for (Participant p : registered) {
+                if (p.getId() == participantId) return true;
+            }
+            for (Participant p : waitlist) {
+                if (p.getId() == participantId) return true;
+            }
+            return false;
+        }
+
+        String register(Participant p) {
+            if (isAlreadyInvolved(p.getId())) return "DUPLICATE";
+            if (!isFull()) {
+                registered.add(p);
+                return "REGISTERED";
+            }
+            waitlist.offer(p);
+            return "WAITLISTED";
+        }
+
+        Participant cancel(int participantId) {
+            for (int i = 0; i < registered.size(); i++) {
+                if (registered.get(i).getId() == participantId) {
+                    registered.remove(i);
+                    Participant next = waitlist.poll();
+                    if (next != null) registered.add(next);
+                    return next;
+                }
+            }
+            Participant toRemove = null;
+            for (Participant p : waitlist) {
+                if (p.getId() == participantId) {
+                    toRemove = p;
+                    break;
+                }
+            }
+            if (toRemove != null) waitlist.remove(toRemove);
+            return null;
+        }
+
+        @Override
+        public String toString() {
+            return "Event [ID: " + id + ", Name: " + name + ", Date: " + date
+                    + ", Seats: " + registered.size() + "/" + capacity
+                    + ", Waiting: " + waitlist.size() + "]";
+        }
+    }
+
+    static class RegistrationManager {
+        private final HashMap<Integer, Event> events = new HashMap<>();
+        private final HashMap<Integer, Participant> participants = new HashMap<>();
+
+        boolean addEvent(int id, String name, String date, int capacity) {
+            if (events.containsKey(id)) return false;
+            events.put(id, new Event(id, name, date, capacity));
+            return true;
+        }
+
+        boolean addParticipant(int id, String name, String email) {
+            if (participants.containsKey(id)) return false;
+            participants.put(id, new Participant(id, name, email));
+            return true;
+        }
+
+        void registerForEvent(int participantId, int eventId) {
+            Participant p = participants.get(participantId);
+            Event e = events.get(eventId);
+            if (p == null) { System.out.println("Participant not found."); return; }
+            if (e == null) { System.out.println("Event not found."); return; }
+
+            String result = e.register(p);
+            if (result.equals("REGISTERED")) {
+                System.out.println(p.getName() + " is registered for " + e.getName() + ".");
+            } else if (result.equals("WAITLISTED")) {
+                System.out.println("Event is full. " + p.getName()
+                        + " added to the waiting list (position " + e.getWaitlist().size() + ").");
+            } else {
+                System.out.println(p.getName() + " is already registered/waitlisted for this event.");
+            }
+        }
+
+        void cancelRegistration(int participantId, int eventId) {
+            Event e = events.get(eventId);
+            if (e == null) { System.out.println("Event not found."); return; }
+            if (!e.isAlreadyInvolved(participantId)) {
+                System.out.println("This participant has no registration for that event.");
+                return;
+            }
+            Participant promoted = e.cancel(participantId);
+            System.out.println("Registration cancelled.");
+            if (promoted != null) {
+                System.out.println(promoted.getName() + " moved from the waiting list to confirmed.");
+            }
+        }
+
+        void showAllEvents() {
+            if (events.isEmpty()) { System.out.println("No events available."); return; }
+            for (Event e : events.values()) System.out.println(e);
+        }
+
+        void showAllParticipants() {
+            if (participants.isEmpty()) { System.out.println("No participants available."); return; }
+            for (Participant p : participants.values()) System.out.println(p);
+        }
+
+        void showEventDetails(int eventId) {
+            Event e = events.get(eventId);
+            if (e == null) { System.out.println("Event not found."); return; }
+
+            System.out.println(e);
+            System.out.println("-- Confirmed participants --");
+            if (e.getRegistered().isEmpty()) System.out.println("(none)");
+            for (Participant p : e.getRegistered()) System.out.println("  " + p);
+
+            System.out.println("-- Waiting list (in order) --");
+            if (e.getWaitlist().isEmpty()) System.out.println("(none)");
+            int pos = 1;
+            for (Participant p : e.getWaitlist()) System.out.println("  " + (pos++) + ". " + p);
+        }
+    }
+
+    private static String readLine(Scanner sc, String prompt) {
+        System.out.print(prompt);
+        if (!sc.hasNextLine()) {
+            System.out.println("\nNo more input. Exiting.");
+            System.exit(0);
+        }
+        return sc.nextLine().trim();
+    }
+
+    private static int readInt(Scanner sc, String prompt) {
+        while (true) {
+            try {
+                return Integer.parseInt(readLine(sc, prompt));
+            } catch (NumberFormatException ex) {
+                System.out.println("Please enter a valid number.");
+            }
+        }
+    }
+
+    public static void main(String[] args) {
+        Scanner sc = new Scanner(System.in);
+        RegistrationManager manager = new RegistrationManager();
+
+        while (true) {
+            System.out.println("\n===== EVENT REGISTRATION SYSTEM =====");
+            System.out.println("1. Add event");
+            System.out.println("2. Add participant");
+            System.out.println("3. Register participant for event");
+            System.out.println("4. Cancel registration");
+            System.out.println("5. View all events");
+            System.out.println("6. View all participants");
+            System.out.println("7. View event details (attendees + waiting list)");
+            System.out.println("0. Exit");
+            int choice = readInt(sc, "Enter choice: ");
+
+            switch (choice) {
+                case 1: {
+                    int id = readInt(sc, "Event ID: ");
+                    String name = readLine(sc, "Event name: ");
+                    String date = readLine(sc, "Date (e.g. 15-12-2026): ");
+                    int cap = readInt(sc, "Capacity: ");
+                    if (cap <= 0) {
+                        System.out.println("Capacity must be greater than 0.");
+                    } else if (manager.addEvent(id, name, date, cap)) {
+                        System.out.println("Event added.");
+                    } else {
+                        System.out.println("An event with this ID already exists.");
+                    }
+                    break;
+                }
+                case 2: {
+                    int id = readInt(sc, "Participant ID: ");
+                    String name = readLine(sc, "Name: ");
+                    String email = readLine(sc, "Email: ");
+                    if (manager.addParticipant(id, name, email)) {
+                        System.out.println("Participant added.");
+                    } else {
+                        System.out.println("A participant with this ID already exists.");
+                    }
+                    break;
+                }
+                case 3: {
+                    int pid = readInt(sc, "Participant ID: ");
+                    int eid = readInt(sc, "Event ID: ");
+                    manager.registerForEvent(pid, eid);
+                    break;
+                }
+                case 4: {
+                    int pid = readInt(sc, "Participant ID: ");
+                    int eid = readInt(sc, "Event ID: ");
+                    manager.cancelRegistration(pid, eid);
+                    break;
+                }
+                case 5:
+                    manager.showAllEvents();
+                    break;
+                case 6:
+                    manager.showAllParticipants();
+                    break;
+                case 7: {
+                    int eid = readInt(sc, "Event ID: ");
+                    manager.showEventDetails(eid);
+                    break;
+                }
+                case 0:
+                    System.out.println("Goodbye!");
+                    sc.close();
+                    return;
+                default:
+                    System.out.println("Invalid choice. Try again.");
+            }
+        }
+    }
+}
+
+// HOW IT WORKS ON TERMINAL
+==== EVENT REGISTRATION SYSTEM =====
+1. Add event
+2. Add participant
+3. Register participant for event
+4. Cancel registration
+5. View all events
+6. View all participants
+7. View event details (attendees + waiting list)
+0. Exit
+Enter choice: 1
+Event ID: 101
+Event name: Tech Workshop
+Date (e.g. 15-12-2026): 15-12-2026
+Capacity: 2
+Event added.
+
+===== EVENT REGISTRATION SYSTEM =====
+1. Add event
+2. Add participant
+3. Register participant for event
+4. Cancel registration
+5. View all events
+6. View all participants
+7. View event details (attendees + waiting list)
+0. Exit
+Enter choice: 2
+Participant ID: 1
+Name: Asha
+Email: asha@example.com
+Participant added.
+
+===== EVENT REGISTRATION SYSTEM =====
+1. Add event
+2. Add participant
+3. Register participant for event
+4. Cancel registration
+5. View all events
+6. View all participants
+7. View event details (attendees + waiting list)
+0. Exit
+Enter choice: 2
+Participant ID: 2
+Name: Rohan
+Email: rohan@example.com
+Participant added.
+
+===== EVENT REGISTRATION SYSTEM =====
+1. Add event
+2. Add participant
+3. Register participant for event
+4. Cancel registration
+5. View all events
+6. View all participants
+7. View event details (attendees + waiting list)
+0. Exit
+Enter choice: 2
+Participant ID: 3
+Name: Neha
+Email: neha@example.com
+Participant added.
+
+===== EVENT REGISTRATION SYSTEM =====
+1. Add event
+2. Add participant
+3. Register participant for event
+4. Cancel registration
+5. View all events
+6. View all participants
+7. View event details (attendees + waiting list)
+0. Exit
+Enter choice: 3
+Participant ID: 1
+Event ID: 101
+Asha is registered for Tech Workshop.
+
+===== EVENT REGISTRATION SYSTEM =====
+1. Add event
+2. Add participant
+3. Register participant for event
+4. Cancel registration
+5. View all events
+6. View all participants
+7. View event details (attendees + waiting list)
+0. Exit
+Enter choice: 3
+Participant ID: 2
+Event ID: 101
+Rohan is registered for Tech Workshop.
+
+===== EVENT REGISTRATION SYSTEM =====
+1. Add event
+2. Add participant
+3. Register participant for event
+4. Cancel registration
+5. View all events
+6. View all participants
+7. View event details (attendees + waiting list)
+0. Exit
+Enter choice: 3
+Participant ID: 3
+Event ID: 101
+Event is full. Neha added to the waiting list (position 1).
+
+===== EVENT REGISTRATION SYSTEM =====
+1. Add event
+2. Add participant
+3. Register participant for event
+4. Cancel registration
+5. View all events
+6. View all participants
+7. View event details (attendees + waiting list)
+0. Exit
+Enter choice: 4
+Participant ID: 1
+Event ID: 101
+Registration cancelled.
+Neha moved from the waiting list to confirmed.
